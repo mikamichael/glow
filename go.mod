@@ -20,7 +20,7 @@ require (
 	github.com/muesli/termenv v0.15.2
 	github.com/sahilm/fuzzy v0.1.0
 	github.com/segmentio/ksuid v1.0.4
-	github.com/spf13/cobra v1.8.0
+	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.14.0
 	golang.org/x/sys v0.17.0
 	golang.org/x/term v0.15.0
