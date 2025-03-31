@@ -1,7 +1,6 @@
 module github.com/charmbracelet/glow/v2
 
 go 1.23.6
-
 toolchain go1.24.1
 
 require (
@@ -11,7 +10,7 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.4
 	github.com/charmbracelet/glamour v0.9.1
 	github.com/charmbracelet/lipgloss v1.1.0
-	github.com/charmbracelet/log v0.4.0
+	github.com/charmbracelet/log v0.4.1
 	github.com/charmbracelet/x/editor v0.1.0
 	github.com/dustin/go-humanize v1.0.1
 	github.com/fsnotify/fsnotify v1.8.0
