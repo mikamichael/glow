@@ -14,6 +14,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/log"
+	"github.com/dustin/go-humanize/english"
 	"github.com/muesli/reflow/ansi"
 	"github.com/muesli/reflow/truncate"
 	"github.com/sahilm/fuzzy"
@@ -778,8 +779,7 @@ func (m stashModel) headerView() string {
 
 		switch v.key {
 		case documentsSection:
-			s = fmt.Sprintf("%d documents", localCount)
-
+			s = fmt.Sprintf("%s", english.Plural(localCount, "document", ""))
 		case filterSection:
 			s = fmt.Sprintf("%d “%s”", len(m.filteredMarkdowns), m.filterInput.Value())
 		}
