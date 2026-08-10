@@ -8,12 +8,10 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/glamour/styles"
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/glow/v2/utils"
 	"github.com/charmbracelet/log"
 	"github.com/muesli/gitcha"
-	te "github.com/muesli/termenv"
 )
 
 const (
@@ -21,31 +19,20 @@ const (
 	ellipsis             = "…"
 )
 
-var (
-	config Config
-
-	markdownExtensions = []string{
-		"*.md", "*.mdown", "*.mkdn", "*.mkd", "*.markdown",
-	}
-)
+var markdownExtensions = []string{
+	"*.md", "*.mdown", "*.mkdn", "*.mkd", "*.markdown",
+}
 
 // NewProgram returns a new Tea program.
 func NewProgram(cfg Config, content string) *tea.Program {
 	log.Debug(
 		"Starting glow",
-		"high_perf_pager",
-		cfg.HighPerformancePager,
 		"glamour",
 		cfg.GlamourEnabled,
 	)
 
-	config = cfg
-	opts := []tea.ProgramOption{tea.WithAltScreen()}
-	if cfg.EnableMouse {
-		opts = append(opts, tea.WithMouseCellMotion())
-	}
 	m := newModel(cfg, content)
-	return tea.NewProgram(m, opts...)
+	return tea.NewProgram(m)
 }
 
 type errMsg struct{ err error }
@@ -95,6 +82,7 @@ type commonModel struct {
 	cwd    string
 	width  int
 	height int
+	styles Styles
 }
 
 type model struct {
@@ -120,10 +108,6 @@ func (m *model) unloadDocument() []tea.Cmd {
 	m.pager.showHelp = false
 
 	var batch []tea.Cmd
-	if m.pager.viewport.HighPerformanceRendering {
-		batch = append(batch, tea.ClearScrollArea) //nolint:staticcheck
-	}
-
 	if !m.stash.shouldSpin() {
 		batch = append(batch, m.stash.spinner.Tick)
 	}
@@ -131,18 +115,9 @@ func (m *model) unloadDocument() []tea.Cmd {
 }
 
 func newModel(cfg Config, content string) tea.Model {
-	initSections()
-
-	if cfg.GlamourStyle == styles.AutoStyle {
-		if te.HasDarkBackground() {
-			cfg.GlamourStyle = styles.DarkStyle
-		} else {
-			cfg.GlamourStyle = styles.LightStyle
-		}
-	}
-
 	common := commonModel{
-		cfg: cfg,
+		cfg:    cfg,
+		styles: newStyles(true),
 	}
 
 	m := model{
@@ -184,7 +159,7 @@ func newModel(cfg Config, content string) tea.Model {
 }
 
 func (m model) Init() tea.Cmd {
-	cmds := []tea.Cmd{m.stash.spinner.Tick}
+	cmds := []tea.Cmd{m.stash.spinner.Tick, tea.RequestBackgroundColor}
 
 	switch m.state {
 	case stateShowStash:
@@ -205,7 +180,7 @@ func (m model) Init() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// If there's been an error, any key exits
 	if m.fatalErr != nil {
-		if _, ok := msg.(tea.KeyMsg); ok {
+		if _, ok := msg.(tea.KeyPressMsg); ok {
 			return m, tea.Quit
 		}
 	}
@@ -213,7 +188,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.BackgroundColorMsg:
+		m.common.styles = newStyles(msg.IsDark())
+		m.stash.stylePaginators(m.common.styles)
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "esc":
 			if m.state == stateShowDocument || m.stash.viewState == stashStateLoadingDocument {
@@ -324,20 +302,26 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-func (m model) View() string {
-	if m.fatalErr != nil {
-		return errorView(m.fatalErr, true)
+func (m model) View() tea.View {
+	var content string
+	switch {
+	case m.fatalErr != nil:
+		content = errorView(m.common.styles, m.fatalErr, true)
+	case m.state == stateShowDocument:
+		content = m.pager.View()
+	default:
+		content = m.stash.view()
 	}
 
-	switch m.state { //nolint:exhaustive
-	case stateShowDocument:
-		return m.pager.View()
-	default:
-		return m.stash.view()
+	v := tea.NewView(content)
+	v.AltScreen = true
+	if m.common.cfg.EnableMouse {
+		v.MouseMode = tea.MouseModeCellMotion
 	}
+	return v
 }
 
-func errorView(err error, fatal bool) string {
+func errorView(styles Styles, err error, fatal bool) string {
 	exitMsg := "press any key to "
 	if fatal {
 		exitMsg += "exit"
@@ -345,9 +329,9 @@ func errorView(err error, fatal bool) string {
 		exitMsg += "return"
 	}
 	s := fmt.Sprintf("%s\n\n%v\n\n%s",
-		errorTitleStyle.Render("ERROR"),
+		styles.errorTitleStyle.Render("ERROR"),
 		err,
-		subtleStyle.Render(exitMsg),
+		styles.subtleStyle.Render(exitMsg),
 	)
 	return "\n" + indent(s, 3)
 }
